@@ -46,7 +46,7 @@ My github:     https://github.com/el-visio
 
 /* Clamp value between min and max */
 
-double clamp(double x, double min, double max) {
+double clamp(t_sample x, t_sample min, t_sample max) {
     if (x < min)
         return min;
 
@@ -81,16 +81,16 @@ void DelayBuffer_init(DelayBuffer *db, uint16_t delay) {
     bufferSize = 1 << numBits;
 
     // Allocate buffer
-    void *buf = malloc(bufferSize * sizeof(double));
-    double *dbuf = static_cast<double*>(buf);
+    void *buf = malloc(bufferSize * sizeof(t_sample));
+    t_sample *dbuf = static_cast<t_sample*>(buf);
     db->buffer = dbuf;
-    //db->buffer = static_cast<double *>(malloc(bufferSize * sizeof(double)));
+    //db->buffer = static_cast<t_sample *>(malloc(bufferSize * sizeof(t_sample)));
 
     if (!db->buffer)
         return;
 
     // Clear buffer
-    memset(db->buffer, 0, bufferSize * sizeof(double));
+    memset(db->buffer, 0, bufferSize * sizeof(t_sample));
 
     // Create bitmask for fast wrapping of the circular buffer
     db->mask = bufferSize - 1;
@@ -104,68 +104,68 @@ void DelayBuffer_delete(DelayBuffer *db) {
 }
 
 /* Write input value into buffer, read delayed output */
-double DelayBuffer_process(DelayBuffer *db, uint16_t t, double in) {
+t_sample DelayBuffer_process(DelayBuffer *db, uint16_t t, t_sample in) {
     db->buffer[t & db->mask] = in;
     return db->buffer[(t + db->readOffset[TAP_MAIN]) & db->mask];
 }
 
 /* Write value into delay buffer */
-void DelayBuffer_write(DelayBuffer *db, uint16_t t, double in) {
+void DelayBuffer_write(DelayBuffer *db, uint16_t t, t_sample in) {
     db->buffer[t & db->mask] = in;
 }
 
 /* Read delayed output value */
-double DelayBuffer_read(DelayBuffer *db, uint16_t tapId, uint16_t t) {
+t_sample DelayBuffer_read(DelayBuffer *db, uint16_t tapId, uint16_t t) {
     return db->buffer[(t + db->readOffset[tapId]) & db->mask];
 }
 
 /* Apply all-pass filter */
-double AllPassFilter_process(DelayBuffer *db, uint16_t t, double gain, double in) {
-    double delayed = DelayBuffer_read(db, TAP_MAIN, t);
+t_sample AllPassFilter_process(DelayBuffer *db, uint16_t t, t_sample gain, t_sample in) {
+    t_sample delayed = DelayBuffer_read(db, TAP_MAIN, t);
     in += delayed * -gain;
     DelayBuffer_write(db, t, in);
     return delayed + in * gain;
 }
 
 /* Apply Low pass filter */
-double LowPassFilter_process(double *out, double freq, double in) {
+t_sample LowPassFilter_process(t_sample *out, t_sample freq, t_sample in) {
     *out += (in - *out) * freq;
     return *out;
 }
 
 /* Set pre-delay length (relative to MAX_PREDELAY) */
-void DattorroVerb_setPreDelay(DattorroVerb *v, double value) {
+void DattorroVerb_setPreDelay(DattorroVerb *v, t_sample value) {
     DelayBuffer_setDelay(&v->preDelay, TAP_MAIN, value * MAX_PREDELAY);
 }
 
 /* Set pre-filter amount */
-void DattorroVerb_setPreFilter(struct sDattorroVerb *v, double value) {
+void DattorroVerb_setPreFilter(struct sDattorroVerb *v, t_sample value) {
     v->preFilterAmount = value;
 }
 
 /* Set input diffusion 1 amount */
-void DattorroVerb_setInputDiffusion1(struct sDattorroVerb *v, double value) {
+void DattorroVerb_setInputDiffusion1(struct sDattorroVerb *v, t_sample value) {
     v->inputDiffusion1Amount = value;
 }
 
 /* Set input diffusion 2 amount */
-void DattorroVerb_setInputDiffusion2(struct sDattorroVerb *v, double value) {
+void DattorroVerb_setInputDiffusion2(struct sDattorroVerb *v, t_sample value) {
     v->inputDiffusion2Amount = value;
 }
 
 /* Set decay diffusion 1 amount */
-void DattorroVerb_setDecayDiffusion(struct sDattorroVerb *v, double value) {
+void DattorroVerb_setDecayDiffusion(struct sDattorroVerb *v, t_sample value) {
     v->decayDiffusion1Amount = value;
 }
 
 /* Set decay amount and calculate related decay diffusion 2 amount */
-void DattorroVerb_setDecay(DattorroVerb *v, double value) {
+void DattorroVerb_setDecay(DattorroVerb *v, t_sample value) {
     v->decayAmount = value;
     v->decayDiffusion2Amount = clamp(value + 0.15, 0.25, 0.50);
 }
 
 /* Set damping amount */
-void DattorroVerb_setDamping(struct sDattorroVerb *v, double value) {
+void DattorroVerb_setDamping(struct sDattorroVerb *v, t_sample value) {
     v->dampingAmount = value;
 }
 
@@ -255,8 +255,8 @@ void DattorroVerb_delete(DattorroVerb *v) {
 // After calling this function you can
 // get wet stereo reverb signal by calling
 // DattorroVerb_getLeft and DattorroVerb_getRight 
-void DattorroVerb_process(DattorroVerb *v, double in) {
-    double x, x1;
+void DattorroVerb_process(DattorroVerb *v, t_sample in) {
+    t_sample x, x1;
 
     // Modulate decayDiffusion1A & decayDiffusion1B
     if ((v->t & 0x07ff) == 0) {
@@ -299,8 +299,8 @@ void DattorroVerb_process(DattorroVerb *v, double in) {
 }
 
 // Get left channel reverb
-double DattorroVerb_getLeft(DattorroVerb *v) {
-    double a;
+t_sample DattorroVerb_getLeft(DattorroVerb *v) {
+    t_sample a;
     a = DelayBuffer_read(&v->preDampingDelay[1], TAP_OUT1, v->t);
     a += DelayBuffer_read(&v->preDampingDelay[1], TAP_OUT2, v->t);
     a -= DelayBuffer_read(&v->decayDiffusion2[1], TAP_OUT2, v->t);
@@ -312,8 +312,8 @@ double DattorroVerb_getLeft(DattorroVerb *v) {
 }
 
 // Get right channel reverb
-double DattorroVerb_getRight(DattorroVerb *v) {
-    double a;
+t_sample DattorroVerb_getRight(DattorroVerb *v) {
+    t_sample a;
     a = DelayBuffer_read(&v->preDampingDelay[0], TAP_OUT1, v->t);
     a += DelayBuffer_read(&v->preDampingDelay[0], TAP_OUT2, v->t);
     a -= DelayBuffer_read(&v->decayDiffusion2[0], TAP_OUT2, v->t);
